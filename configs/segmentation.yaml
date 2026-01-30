@@ -1,0 +1,11 @@
+model:
+  type: "segformer"
+  backbone: "nvidia/segformer-b2-finetuned-cityscapes-1024-1024"
+  num_classes: 5
+  pretrained: true
+
+input:
+  image_size: [512, 512]
+  normalize:
+    mean: [0.485, 0.456, 0.406]
+    std: [0.229, 0.224, 0.225]

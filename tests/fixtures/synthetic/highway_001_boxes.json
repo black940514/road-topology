@@ -1,0 +1,39 @@
+{
+  "boxes": [
+    {
+      "x1": 157,
+      "y1": 302,
+      "x2": 203,
+      "y2": 381,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    },
+    {
+      "x1": 433,
+      "y1": 281,
+      "x2": 487,
+      "y2": 351,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    },
+    {
+      "x1": 157,
+      "y1": 284,
+      "x2": 203,
+      "y2": 369,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    }
+  ],
+  "metadata": {
+    "scene_type": "highway",
+    "num_lanes": 2,
+    "num_vehicles": 3,
+    "seed": 42,
+    "width": 640,
+    "height": 480
+  }
+}

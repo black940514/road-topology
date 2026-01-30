@@ -1,0 +1,41 @@
+# Core dependencies
+pydantic>=2.0.0
+pydantic-settings>=2.0.0
+pyyaml>=6.0.0
+
+# Computer Vision
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# PyTorch (platform-specific installation)
+# CUDA:  pip install torch torchvision --index-url https://download.pytorch.org/whl/cu118
+# MPS:   pip install torch torchvision  (default macOS wheels include MPS)
+# CPU:   pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Object Detection & Tracking
+ultralytics>=8.0.0  # YOLOv8
+
+# Segmentation
+transformers>=4.30.0  # For SegFormer
+segment-anything>=1.0  # SAM
+
+# Dataset & Labeling
+cvat-sdk>=2.0.0  # CVAT integration
+
+# Utilities
+tqdm>=4.65.0
+pillow>=10.0.0
+scikit-learn>=1.3.0
+scipy>=1.11.0
+typer>=0.9.0  # CLI framework
+rich>=13.0.0  # Rich terminal output
+requests>=2.31.0  # HTTP library
+matplotlib>=3.7.0  # Visualization
+
+# Development
+pytest>=7.4.0
+black>=23.0.0
+ruff>=0.0.280
+mypy>=1.4.0

@@ -1,0 +1,56 @@
+[
+  {
+    "model_name": "SegFormer-B2",
+    "device": "mps",
+    "aggregate": {
+      "avg_iou": 0.6943612454087571,
+      "std_iou": 0.16292420173000585,
+      "avg_precision": 0.6985104539611681,
+      "std_precision": 0.16540076690429395,
+      "avg_recall": 0.992708714174126,
+      "std_recall": 0.007820080595250427,
+      "avg_f1": 0.8084052648584384,
+      "std_f1": 0.11730969810301814,
+      "avg_pixel_acc": 0.9161896603231985,
+      "std_pixel_acc": 0.05790217535418996
+    },
+    "avg_inference_time": 0.08494206118336185,
+    "total_images": 289
+  },
+  {
+    "model_name": "SegFormer-B5",
+    "device": "mps",
+    "aggregate": {
+      "avg_iou": 0.7384989918403106,
+      "std_iou": 0.1557418942252338,
+      "avg_precision": 0.741870239317154,
+      "std_precision": 0.1579937929877698,
+      "avg_recall": 0.994963476639128,
+      "std_recall": 0.005982260061673908,
+      "avg_f1": 0.8399057374042694,
+      "std_f1": 0.10854198782434965,
+      "avg_pixel_acc": 0.932264665392243,
+      "std_pixel_acc": 0.049965065794860986
+    },
+    "avg_inference_time": 0.7504565856036018,
+    "total_images": 289
+  },
+  {
+    "model_name": "DPT-Large",
+    "device": "mps",
+    "aggregate": {
+      "avg_iou": 0.7344895774320068,
+      "std_iou": 0.13687278641030556,
+      "avg_precision": 0.7423884159181753,
+      "std_precision": 0.13950855305077298,
+      "avg_recall": 0.9876866168697698,
+      "std_recall": 0.03420930517504187,
+      "avg_f1": 0.8394015060078941,
+      "std_f1": 0.09573759097592592,
+      "avg_pixel_acc": 0.9326518329621634,
+      "std_pixel_acc": 0.04518262366796741
+    },
+    "avg_inference_time": 0.4248310100661017,
+    "total_images": 289
+  }
+]

@@ -1,0 +1,10 @@
+tracker:
+  type: "bytetrack"
+  track_thresh: 0.5
+  track_buffer: 30
+  match_thresh: 0.8
+
+trajectory:
+  min_length: 10
+  smooth_window: 5
+  max_gap: 5

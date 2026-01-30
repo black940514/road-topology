@@ -1,0 +1,15 @@
+model:
+  name: "yolov8m.pt"
+  confidence_threshold: 0.5
+  iou_threshold: 0.45
+
+vehicle_classes:
+  - 2   # car
+  - 3   # motorcycle
+  - 5   # bus
+  - 7   # truck
+
+inference:
+  batch_size: 4
+  half_precision: true  # Note: Ignored on MPS (uses float32)
+  device: "auto"  # auto | cuda | mps | cpu

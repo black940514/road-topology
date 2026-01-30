@@ -1,0 +1,14 @@
+project:
+  name: "road-topology"
+  seed: 42
+  device: "auto"  # auto | cuda | mps | cpu
+
+logging:
+  level: "INFO"
+  format: "console"
+  file: null
+
+paths:
+  models: "./models"
+  data: "./data"
+  outputs: "./outputs"

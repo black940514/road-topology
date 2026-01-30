@@ -1,0 +1,19 @@
+server:
+  url: "http://localhost:8080"
+  username: ""
+  password: ""
+
+project:
+  name: "road-topology-labeling"
+  labels:
+    - name: "road"
+      color: "#808080"
+    - name: "lane"
+      color: "#FFFFFF"
+    - name: "crosswalk"
+      color: "#FFFF00"
+    - name: "sidewalk"
+      color: "#00FF00"
+
+export:
+  format: "COCO 1.0"

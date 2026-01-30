@@ -1,0 +1,2 @@
+[console_scripts]
+road-topo = road_topology.cli.main:app

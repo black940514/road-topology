@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+ENV/
+env/
+.env
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Experiment result outputs
+results/*/*.png
+results/*/*.jpg
+results/*/*.jpeg
+
+# Large binary files
+*.pth
+*.onnx
+*.pt
+*.zip
+
+# Model directories
+models/
+
+# Data directories
+data/
+
+# External repositories
+repos/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# OMC state (development artifacts)
+.omc/
+
+# Output directories
+output_dir*/

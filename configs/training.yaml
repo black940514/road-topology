@@ -1,0 +1,29 @@
+training:
+  epochs: 100
+  batch_size: 8
+  num_workers: 4
+
+optimizer:
+  type: "adamw"
+  lr: 6e-5
+  weight_decay: 0.01
+
+scheduler:
+  type: "polynomial"
+  power: 0.9
+
+loss:
+  type: "combined"
+  ce_weight: 0.5
+  dice_weight: 0.5
+
+augmentation:
+  level: "medium"
+
+checkpointing:
+  save_best: true
+  save_last: true
+  early_stopping_patience: 10
+
+mixed_precision: true
+gradient_accumulation: 2

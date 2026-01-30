@@ -1,0 +1,14 @@
+model:
+  type: "vit_h"
+  checkpoint: "./models/sam/sam_vit_h_4b8939.pth"
+
+inference:
+  points_per_side: 32
+  pred_iou_thresh: 0.88
+  stability_score_thresh: 0.95
+  box_nms_thresh: 0.7
+
+yolo_prompting:
+  enabled: true
+  bbox_expansion: 0.1
+  min_confidence: 0.5

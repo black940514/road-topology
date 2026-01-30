@@ -1,0 +1,57 @@
+{
+  "boxes": [
+    {
+      "x1": 88,
+      "y1": 259,
+      "x2": 132,
+      "y2": 319,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    },
+    {
+      "x1": 222,
+      "y1": 355,
+      "x2": 278,
+      "y2": 434,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    },
+    {
+      "x1": 369,
+      "y1": 368,
+      "x2": 411,
+      "y2": 442,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    },
+    {
+      "x1": 510,
+      "y1": 337,
+      "x2": 550,
+      "y2": 400,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    },
+    {
+      "x1": 81,
+      "y1": 299,
+      "x2": 139,
+      "y2": 386,
+      "class_id": 2,
+      "class_name": "car",
+      "confidence": 0.95
+    }
+  ],
+  "metadata": {
+    "scene_type": "highway",
+    "num_lanes": 4,
+    "num_vehicles": 5,
+    "seed": 43,
+    "width": 640,
+    "height": 480
+  }
+}
