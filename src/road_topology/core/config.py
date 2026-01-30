@@ -63,6 +63,36 @@ class SegmentationConfig(BaseModel):
     image_size: tuple[int, int] = (512, 512)
 
 
+class LaneSegmentationConfig(BaseModel):
+    """Lane instance segmentation configuration.
+
+    Combines semantic segmentation with instance embeddings for
+    lane-level detection and tracking.
+
+    Args:
+        model_type: Model architecture ("segformer_lane").
+        backbone: SegFormer backbone variant (b0-b5).
+        num_semantic_classes: Number of semantic classes (background + lane types).
+        embedding_dim: Dimension of instance embedding space.
+        semantic_weight: Loss weight for semantic segmentation.
+        instance_weight: Loss weight for instance embeddings.
+        delta_var: Variance margin for discriminative loss (pull force).
+        delta_dist: Distance margin for discriminative loss (push force).
+        pretrained: Whether to use pretrained backbone weights.
+        image_size: Input image size (H, W).
+    """
+    model_type: str = "segformer_lane"
+    backbone: str = "b5"  # b0, b1, b2, b3, b4, b5
+    num_semantic_classes: int = 6  # background + 5 lane classes
+    embedding_dim: int = 32
+    semantic_weight: float = 1.0
+    instance_weight: float = 0.5
+    delta_var: float = 0.5
+    delta_dist: float = 1.5
+    pretrained: bool = True
+    image_size: tuple[int, int] = (512, 512)
+
+
 class SAMConfig(BaseModel):
     """SAM model configuration."""
     model_type: str = "vit_h"

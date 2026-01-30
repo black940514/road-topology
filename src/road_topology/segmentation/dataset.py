@@ -276,3 +276,180 @@ class PseudoLabelDataset(RoadTopologyDataset):
         )
 
         return new_dataset
+
+
+class LaneInstanceDataset(RoadTopologyDataset):
+    """Dataset for lane instance segmentation.
+
+    Extends RoadTopologyDataset to load both semantic and instance masks.
+
+    Directory structure:
+    ```
+    root/
+        {split}/
+            images/
+                image_001.jpg
+            semantic_masks/  (or masks/)
+                image_001.png
+            instance_masks/
+                image_001.png
+    ```
+
+    Instance masks should contain unique IDs for each lane instance:
+    - 0: background
+    - 1, 2, 3, ...: individual lane instances
+
+    Args:
+        root: Dataset root directory.
+        split: Data split (train, val, test).
+        transforms: Albumentations transforms.
+        semantic_dir_name: Name of semantic mask directory (default: "semantic_masks").
+        instance_dir_name: Name of instance mask directory (default: "instance_masks").
+    """
+
+    def __init__(
+        self,
+        root: Path | str,
+        split: str = "train",
+        transforms: Any = None,
+        semantic_dir_name: str = "semantic_masks",
+        instance_dir_name: str = "instance_masks",
+    ) -> None:
+        # Initialize parent without loading masks yet
+        super().__init__(root, split, transforms, use_confidence_weights=False)
+
+        # Override mask directories
+        self.semantic_masks_dir = self.root / split / semantic_dir_name
+        self.instance_masks_dir = self.root / split / instance_dir_name
+
+        # Fallback to "masks" for semantic if semantic_masks doesn't exist
+        if not self.semantic_masks_dir.exists():
+            fallback_dir = self.root / split / "masks"
+            if fallback_dir.exists():
+                logger.info(f"Using fallback semantic masks directory: {fallback_dir}")
+                self.semantic_masks_dir = fallback_dir
+            else:
+                logger.warning(f"Semantic masks directory not found: {self.semantic_masks_dir}")
+
+        # Check instance masks directory
+        if not self.instance_masks_dir.exists():
+            raise FileNotFoundError(
+                f"Instance masks directory not found: {self.instance_masks_dir}\n"
+                f"For lane instance segmentation, you must provide instance_masks/ directory.\n"
+                f"Expected structure:\n"
+                f"  {self.root}/{split}/\n"
+                f"    images/\n"
+                f"    {semantic_dir_name}/  (or masks/)\n"
+                f"    {instance_dir_name}/"
+            )
+
+        logger.info(
+            f"LaneInstanceDataset initialized with {len(self.image_paths)} images",
+            semantic_dir=str(self.semantic_masks_dir),
+            instance_dir=str(self.instance_masks_dir),
+        )
+
+    def __getitem__(self, idx: int) -> dict[str, torch.Tensor]:
+        """Get a sample with both semantic and instance masks.
+
+        Returns:
+            Dictionary with:
+            - image: (C, H, W) tensor
+            - semantic_mask: (H, W) tensor with class indices
+            - instance_mask: (H, W) tensor with instance IDs
+            - image_path: str
+        """
+        img_path = self.image_paths[idx]
+
+        # Load image
+        image = cv2.imread(str(img_path))
+        if image is None:
+            raise ValueError(f"Failed to load image: {img_path}")
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Load semantic mask
+        semantic_mask_path = self.semantic_masks_dir / f"{img_path.stem}.png"
+        if not semantic_mask_path.exists():
+            semantic_mask_path = self.semantic_masks_dir / f"{img_path.stem}_mask.png"
+
+        semantic_mask = cv2.imread(str(semantic_mask_path), cv2.IMREAD_GRAYSCALE)
+        if semantic_mask is None:
+            raise ValueError(f"Failed to load semantic mask: {semantic_mask_path}")
+
+        # Load instance mask
+        instance_mask_path = self.instance_masks_dir / f"{img_path.stem}.png"
+        if not instance_mask_path.exists():
+            instance_mask_path = self.instance_masks_dir / f"{img_path.stem}_instance.png"
+
+        # Try loading as grayscale first (for single-channel encoded IDs)
+        instance_mask = cv2.imread(str(instance_mask_path), cv2.IMREAD_GRAYSCALE)
+
+        if instance_mask is None:
+            # Try loading as color and convert to instance IDs
+            instance_mask_rgb = cv2.imread(str(instance_mask_path))
+            if instance_mask_rgb is None:
+                raise ValueError(f"Failed to load instance mask: {instance_mask_path}")
+
+            # Convert RGB to instance IDs (assumes each unique color is an instance)
+            instance_mask = self._rgb_to_instance_ids(instance_mask_rgb)
+            logger.debug(f"Converted RGB instance mask to {instance_mask.max()} instances")
+
+        # Apply transforms
+        if self.transforms is not None:
+            transformed = self.transforms(
+                image=image,
+                masks=[semantic_mask, instance_mask],
+            )
+            image = transformed["image"]
+            semantic_mask = transformed["masks"][0]
+            instance_mask = transformed["masks"][1]
+
+        # Convert to tensors
+        if isinstance(image, np.ndarray):
+            image = torch.from_numpy(image.transpose(2, 0, 1)).float() / 255.0
+
+        if isinstance(semantic_mask, np.ndarray):
+            semantic_mask = torch.from_numpy(semantic_mask.astype(np.int64))
+        elif isinstance(semantic_mask, torch.Tensor):
+            semantic_mask = semantic_mask.long()
+
+        if isinstance(instance_mask, np.ndarray):
+            instance_mask = torch.from_numpy(instance_mask.astype(np.int64))
+        elif isinstance(instance_mask, torch.Tensor):
+            instance_mask = instance_mask.long()
+
+        return {
+            "image": image,
+            "semantic_mask": semantic_mask,
+            "instance_mask": instance_mask,
+            "image_path": str(img_path),
+        }
+
+    @staticmethod
+    def _rgb_to_instance_ids(rgb_mask: np.ndarray) -> np.ndarray:
+        """Convert RGB instance mask to integer instance IDs.
+
+        Args:
+            rgb_mask: (H, W, 3) RGB mask where each unique color is an instance.
+
+        Returns:
+            (H, W) mask with integer instance IDs.
+        """
+        h, w = rgb_mask.shape[:2]
+        instance_mask = np.zeros((h, w), dtype=np.int32)
+
+        # Flatten to (H*W, 3)
+        rgb_flat = rgb_mask.reshape(-1, 3)
+
+        # Find unique colors
+        unique_colors = np.unique(rgb_flat, axis=0)
+
+        # Assign IDs (0 is typically background/black)
+        for instance_id, color in enumerate(unique_colors):
+            if np.all(color == 0):  # Skip black (background)
+                continue
+
+            mask = np.all(rgb_mask == color, axis=2)
+            instance_mask[mask] = instance_id
+
+        return instance_mask

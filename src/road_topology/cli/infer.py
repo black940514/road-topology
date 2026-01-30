@@ -234,3 +234,100 @@ def batch(
 
     console.print(f"[green]Processed {len(image_paths)} images[/green]")
     console.print(f"Results saved to {output_dir}")
+
+
+@app.command()
+def lane(
+    model: Path = typer.Option(..., "--model", "-m", help="Lane model checkpoint"),
+    input: Path = typer.Option(..., "--input", "-i", help="Input image or directory"),
+    output: Path = typer.Option(..., "--output", "-o", help="Output path or directory"),
+    visualize: bool = typer.Option(True, "--visualize/--no-visualize", help="Visualize results"),
+):
+    """Run lane segmentation inference with instance separation."""
+    import cv2
+    import numpy as np
+
+    from road_topology.inference import LanePredictor
+    from road_topology.evaluation.visualize import visualize_lane_instances
+
+    console.print(f"[blue]Running lane instance inference[/blue]")
+
+    # Load predictor
+    predictor = LanePredictor(model_path=str(model), device="auto")
+    console.print(f"  Model loaded from: {model}")
+    console.print(f"  Device: {predictor.device}")
+
+    # Check if input is file or directory
+    if input.is_file():
+        # Single image inference
+        image = cv2.imread(str(input))
+        image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+        # Run inference
+        results = predictor.predict(image_rgb)
+
+        semantic_mask = results["semantic_mask"]
+        instance_mask = results["lane_instances"]
+        lane_count = results["lane_count"]
+
+        # Visualize
+        if visualize:
+            vis = visualize_lane_instances(image_rgb, semantic_mask, instance_mask, alpha=0.5)
+
+            # Save
+            output.parent.mkdir(parents=True, exist_ok=True)
+            cv2.imwrite(str(output), cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
+
+            console.print(f"[green]Saved result to {output}[/green]")
+
+        # Print statistics
+        console.print(f"\n[bold]Detected {lane_count} lane instances[/bold]")
+
+        for instance_id in range(1, lane_count + 1):
+            pixel_count = int((instance_mask == instance_id).sum())
+            console.print(f"  Lane {instance_id}: {pixel_count} pixels")
+
+        # Show crosswalk info
+        crosswalk_pixels = int((semantic_mask == 3).sum())  # crosswalk class = 3
+        if crosswalk_pixels > 0:
+            console.print(f"\n[bold]Crosswalk detected:[/bold] {crosswalk_pixels} pixels")
+
+    else:
+        # Batch processing
+        image_paths = list(input.glob("*.jpg")) + list(input.glob("*.png"))
+        console.print(f"Found {len(image_paths)} images")
+
+        if not image_paths:
+            console.print("[yellow]No images found![/yellow]")
+            return
+
+        output.mkdir(parents=True, exist_ok=True)
+
+        with Progress() as progress:
+            task = progress.add_task("Processing images...", total=len(image_paths))
+
+            for img_path in image_paths:
+                # Load image
+                image = cv2.imread(str(img_path))
+                image_rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+
+                # Inference
+                results = predictor.predict(image_rgb)
+
+                semantic_mask = results["semantic_mask"]
+                instance_mask = results["lane_instances"]
+
+                # Visualize
+                if visualize:
+                    vis = visualize_lane_instances(image_rgb, semantic_mask, instance_mask, alpha=0.5)
+                    output_path = output / f"{img_path.stem}_lane_instances.png"
+                    cv2.imwrite(str(output_path), cv2.cvtColor(vis, cv2.COLOR_RGB2BGR))
+
+                # Save instance mask
+                mask_path = output / f"{img_path.stem}_instances.png"
+                cv2.imwrite(str(mask_path), instance_mask.astype(np.uint8))
+
+                progress.update(task, advance=1)
+
+        console.print(f"[green]Processed {len(image_paths)} images[/green]")
+        console.print(f"Results saved to {output}")

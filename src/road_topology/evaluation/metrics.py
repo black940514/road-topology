@@ -259,3 +259,157 @@ def compute_precision_recall(
     recall = true_pos / (true_pos + false_neg) if (true_pos + false_neg) > 0 else 0.0
 
     return float(precision), float(recall)
+
+
+def compute_lane_instance_metrics(
+    pred_instances: np.ndarray,
+    gt_instances: np.ndarray,
+    num_lanes_pred: int,
+    num_lanes_gt: int,
+) -> dict[str, float]:
+    """Compute lane instance segmentation metrics.
+
+    Args:
+        pred_instances: Predicted instance mask (H, W) with instance IDs.
+        gt_instances: Ground truth instance mask (H, W) with instance IDs.
+        num_lanes_pred: Number of predicted lane instances.
+        num_lanes_gt: Number of ground truth lane instances.
+
+    Returns:
+        Dictionary containing:
+        - lane_detection_accuracy: Percentage of lanes correctly detected.
+        - lane_ordering_accuracy: Percentage of lanes in correct order.
+        - mean_instance_iou: Average IoU across lane instances.
+        - panoptic_quality: PQ metric for instance segmentation.
+    """
+    # Match predicted instances to ground truth instances
+    iou_matrix = np.zeros((num_lanes_pred, num_lanes_gt))
+
+    for i in range(1, num_lanes_pred + 1):
+        pred_mask = (pred_instances == i)
+        for j in range(1, num_lanes_gt + 1):
+            gt_mask = (gt_instances == j)
+            intersection = (pred_mask & gt_mask).sum()
+            union = (pred_mask | gt_mask).sum()
+            iou_matrix[i - 1, j - 1] = intersection / union if union > 0 else 0.0
+
+    # Hungarian matching (greedy approximation)
+    matched_pairs = []
+    iou_threshold = 0.5
+
+    used_pred = set()
+    used_gt = set()
+
+    # Greedy matching based on IoU
+    for _ in range(min(num_lanes_pred, num_lanes_gt)):
+        max_iou = 0
+        max_i, max_j = -1, -1
+
+        for i in range(num_lanes_pred):
+            if i in used_pred:
+                continue
+            for j in range(num_lanes_gt):
+                if j in used_gt:
+                    continue
+                if iou_matrix[i, j] > max_iou:
+                    max_iou = iou_matrix[i, j]
+                    max_i, max_j = i, j
+
+        if max_iou >= iou_threshold:
+            matched_pairs.append((max_i, max_j, max_iou))
+            used_pred.add(max_i)
+            used_gt.add(max_j)
+        else:
+            break
+
+    # Compute metrics
+    num_matched = len(matched_pairs)
+    lane_detection_accuracy = num_matched / num_lanes_gt if num_lanes_gt > 0 else 0.0
+
+    mean_instance_iou = 0.0
+    if matched_pairs:
+        mean_instance_iou = sum(iou for _, _, iou in matched_pairs) / len(matched_pairs)
+
+    # Panoptic Quality: PQ = SQ * RQ
+    # SQ (Segmentation Quality) = mean IoU of matched instances
+    # RQ (Recognition Quality) = F1 of detection
+    sq = mean_instance_iou
+
+    tp = num_matched
+    fp = num_lanes_pred - num_matched
+    fn = num_lanes_gt - num_matched
+
+    rq = tp / (tp + 0.5 * fp + 0.5 * fn) if (tp + fp + fn) > 0 else 0.0
+    pq = sq * rq
+
+    # Compute lane ordering accuracy (left-to-right)
+    pred_order = _get_lane_order(pred_instances, num_lanes_pred)
+    gt_order = _get_lane_order(gt_instances, num_lanes_gt)
+    lane_ordering_accuracy = compute_lane_ordering_accuracy(pred_order, gt_order)
+
+    return {
+        "lane_detection_accuracy": float(lane_detection_accuracy),
+        "lane_ordering_accuracy": float(lane_ordering_accuracy),
+        "mean_instance_iou": float(mean_instance_iou),
+        "panoptic_quality": float(pq),
+    }
+
+
+def compute_lane_ordering_accuracy(pred_order: list[int], gt_order: list[int]) -> float:
+    """Check if lanes are ordered correctly left-to-right.
+
+    Args:
+        pred_order: Predicted lane instance IDs in left-to-right order.
+        gt_order: Ground truth lane instance IDs in left-to-right order.
+
+    Returns:
+        Ordering accuracy (0-1).
+    """
+    if not pred_order or not gt_order:
+        return 0.0
+
+    # Use longest common subsequence to measure ordering similarity
+    n, m = len(pred_order), len(gt_order)
+
+    # Simple LCS-based metric
+    dp = [[0] * (m + 1) for _ in range(n + 1)]
+
+    for i in range(1, n + 1):
+        for j in range(1, m + 1):
+            if pred_order[i - 1] == gt_order[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1] + 1
+            else:
+                dp[i][j] = max(dp[i - 1][j], dp[i][j - 1])
+
+    lcs_length = dp[n][m]
+    ordering_accuracy = lcs_length / max(n, m)
+
+    return float(ordering_accuracy)
+
+
+def _get_lane_order(instance_mask: np.ndarray, num_lanes: int) -> list[int]:
+    """Get lane instance IDs ordered from left to right.
+
+    Args:
+        instance_mask: Instance mask (H, W) with instance IDs.
+        num_lanes: Number of lane instances.
+
+    Returns:
+        List of instance IDs ordered left-to-right.
+    """
+    centroids = []
+
+    for lane_id in range(1, num_lanes + 1):
+        lane_mask = (instance_mask == lane_id)
+        if lane_mask.sum() == 0:
+            continue
+
+        # Compute centroid
+        y_coords, x_coords = np.where(lane_mask)
+        centroid_x = x_coords.mean()
+        centroids.append((centroid_x, lane_id))
+
+    # Sort by x-coordinate (left to right)
+    centroids.sort(key=lambda c: c[0])
+
+    return [lane_id for _, lane_id in centroids]

@@ -272,7 +272,7 @@ class PredictionResult:
     inference_time_ms: float
 
 
-# Class definitions
+# Class definitions (original, kept for backward compatibility)
 CLASS_NAMES = ["background", "road", "lane", "crosswalk", "sidewalk"]
 NUM_CLASSES = len(CLASS_NAMES)
 
@@ -282,4 +282,30 @@ CLASS_COLORS = {
     2: (255, 255, 255), # lane - white
     3: (255, 255, 0),   # crosswalk - yellow
     4: (0, 255, 0),     # sidewalk - green
+}
+
+# Extended class definitions for lane instance segmentation
+SEMANTIC_CLASS_NAMES = ["background", "road", "lane_marking", "crosswalk", "sidewalk", "lane_boundary"]
+NUM_SEMANTIC_CLASSES = 6
+
+LANE_INSTANCE_NAMES = ["background", "lane_1", "lane_2", "lane_3", "lane_4", "lane_5", "lane_6"]
+MAX_LANES = 6
+
+SEMANTIC_CLASS_COLORS = {
+    0: (0, 0, 0),       # background
+    1: (128, 128, 128), # road
+    2: (255, 255, 255), # lane_marking
+    3: (255, 255, 0),   # crosswalk
+    4: (0, 255, 0),     # sidewalk
+    5: (0, 0, 255),     # lane_boundary
+}
+
+LANE_INSTANCE_COLORS = {
+    0: (0, 0, 0),       # background
+    1: (255, 0, 0),     # lane_1
+    2: (0, 255, 0),     # lane_2
+    3: (0, 0, 255),     # lane_3
+    4: (255, 255, 0),   # lane_4
+    5: (255, 0, 255),   # lane_5
+    6: (0, 255, 255),   # lane_6
 }

@@ -355,3 +355,208 @@ def visualize_boundary_errors(
         plt.show()
     else:
         plt.close()
+
+
+def visualize_lane_instances(
+    image: np.ndarray,
+    semantic_mask: np.ndarray,
+    lane_instances: np.ndarray,
+    alpha: float = 0.5,
+) -> np.ndarray:
+    """Visualize lane instances with distinct colors.
+
+    Args:
+        image: Original RGB image (H, W, 3).
+        semantic_mask: Semantic segmentation mask (H, W).
+        lane_instances: Instance mask (H, W) with instance IDs.
+        alpha: Transparency of overlay [0, 1].
+
+    Returns:
+        RGB image with instance visualization (H, W, 3).
+    """
+    import cv2
+
+    h, w = lane_instances.shape
+    instance_colored = np.zeros((h, w, 3), dtype=np.uint8)
+
+    # Generate distinct colors for each instance
+    num_instances = int(lane_instances.max())
+    colors = _generate_distinct_colors(num_instances)
+
+    for instance_id in range(1, num_instances + 1):
+        instance_colored[lane_instances == instance_id] = colors[instance_id - 1]
+
+    # Resize image to match mask size
+    image_resized = cv2.resize(image, (w, h))
+
+    # Create overlay
+    overlay = (image_resized * (1 - alpha) + instance_colored * alpha).astype(np.uint8)
+
+    return overlay
+
+
+def visualize_embeddings_tsne(
+    embeddings: np.ndarray,
+    instance_labels: np.ndarray,
+    sample_ratio: float = 0.01,
+) -> None:
+    """Visualize embedding space using t-SNE.
+
+    Args:
+        embeddings: Embedding vectors (N, D) where N is number of pixels.
+        instance_labels: Instance labels (N,) for coloring.
+        sample_ratio: Ratio of points to sample for visualization.
+    """
+    from sklearn.manifold import TSNE
+
+    # Sample points
+    n_samples = int(len(embeddings) * sample_ratio)
+    indices = np.random.choice(len(embeddings), n_samples, replace=False)
+
+    embeddings_sampled = embeddings[indices]
+    labels_sampled = instance_labels[indices]
+
+    # Run t-SNE
+    tsne = TSNE(n_components=2, random_state=42)
+    embeddings_2d = tsne.fit_transform(embeddings_sampled)
+
+    # Plot
+    fig, ax = plt.subplots(figsize=(10, 8))
+
+    unique_labels = np.unique(labels_sampled)
+    colors = _generate_distinct_colors(len(unique_labels))
+
+    for i, label in enumerate(unique_labels):
+        mask = labels_sampled == label
+        ax.scatter(
+            embeddings_2d[mask, 0],
+            embeddings_2d[mask, 1],
+            c=[colors[i]],
+            label=f"Instance {label}",
+            alpha=0.6,
+            s=5,
+        )
+
+    ax.set_title("t-SNE Visualization of Lane Instance Embeddings")
+    ax.set_xlabel("t-SNE Dimension 1")
+    ax.set_ylabel("t-SNE Dimension 2")
+    ax.legend()
+
+    plt.tight_layout()
+    plt.show()
+
+
+def visualize_instance_masks(
+    image: np.ndarray,
+    semantic_mask: np.ndarray,
+    instance_mask: np.ndarray,
+    output_path: Path | None = None,
+) -> None:
+    """Visualize semantic + instance masks side-by-side for QA.
+
+    Args:
+        image: Original RGB image (H, W, 3).
+        semantic_mask: Semantic segmentation mask (H, W).
+        instance_mask: Instance mask (H, W) with instance IDs.
+        output_path: Optional path to save figure.
+    """
+    import cv2
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+
+    # Original image
+    axes[0].imshow(image)
+    axes[0].set_title("Original Image")
+    axes[0].axis("off")
+
+    # Semantic mask
+    semantic_colored = _mask_to_color(semantic_mask)
+    axes[1].imshow(semantic_colored)
+    axes[1].set_title("Semantic Mask")
+    axes[1].axis("off")
+
+    # Instance mask
+    num_instances = int(instance_mask.max())
+    colors = _generate_distinct_colors(num_instances)
+
+    instance_colored = np.zeros((*instance_mask.shape, 3), dtype=np.uint8)
+    for instance_id in range(1, num_instances + 1):
+        instance_colored[instance_mask == instance_id] = colors[instance_id - 1]
+
+    axes[2].imshow(instance_colored)
+    axes[2].set_title(f"Instance Mask ({num_instances} instances)")
+    axes[2].axis("off")
+
+    plt.tight_layout()
+
+    if output_path is not None:
+        plt.savefig(output_path, dpi=150, bbox_inches="tight")
+        plt.close()
+    else:
+        plt.show()
+
+
+def compute_instance_mask_stats(instance_masks_dir: Path) -> dict[str, float]:
+    """Compute statistics on generated instance masks.
+
+    Args:
+        instance_masks_dir: Directory containing instance mask files.
+
+    Returns:
+        Dictionary with statistics:
+        - num_images: Number of images processed.
+        - avg_instances_per_image: Average number of instances per image.
+        - max_instances: Maximum number of instances in any image.
+        - min_instances: Minimum number of instances in any image.
+        - total_instances: Total number of instances across all images.
+    """
+    import cv2
+
+    instance_paths = list(instance_masks_dir.glob("*.png"))
+
+    if not instance_paths:
+        return {
+            "num_images": 0,
+            "avg_instances_per_image": 0.0,
+            "max_instances": 0,
+            "min_instances": 0,
+            "total_instances": 0,
+        }
+
+    instance_counts = []
+
+    for path in instance_paths:
+        mask = cv2.imread(str(path), cv2.IMREAD_GRAYSCALE)
+        num_instances = int(mask.max())
+        instance_counts.append(num_instances)
+
+    return {
+        "num_images": len(instance_paths),
+        "avg_instances_per_image": float(np.mean(instance_counts)),
+        "max_instances": int(np.max(instance_counts)),
+        "min_instances": int(np.min(instance_counts)),
+        "total_instances": int(np.sum(instance_counts)),
+    }
+
+
+def _generate_distinct_colors(n: int) -> list[tuple[int, int, int]]:
+    """Generate n visually distinct colors.
+
+    Args:
+        n: Number of colors to generate.
+
+    Returns:
+        List of (R, G, B) tuples.
+    """
+    import colorsys
+
+    colors = []
+    for i in range(n):
+        hue = i / n
+        saturation = 0.7 + (i % 3) * 0.1
+        value = 0.8 + (i % 2) * 0.2
+
+        rgb = colorsys.hsv_to_rgb(hue, saturation, value)
+        colors.append(tuple(int(c * 255) for c in rgb))
+
+    return colors

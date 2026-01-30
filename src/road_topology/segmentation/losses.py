@@ -257,3 +257,162 @@ def compute_class_weights(
         raise ValueError(f"Unknown weighting method: {method}")
 
     return weights
+
+
+class DiscriminativeLoss(nn.Module):
+    """Discriminative loss for instance segmentation.
+
+    Based on https://arxiv.org/abs/1708.02551
+    "Semantic Instance Segmentation with a Discriminative Loss Function"
+
+    Components:
+    1. Variance term: Pull pixels toward instance mean (delta_var=0.5)
+    2. Distance term: Push instance means apart (delta_dist=1.5)
+    3. Regularization: Keep means close to origin (gamma=0.001)
+
+    Args:
+        delta_var: Margin for variance term (pull force).
+        delta_dist: Margin for distance term (push force).
+        norm: Norm type for distance computation (1 or 2).
+        alpha: Weight for variance term.
+        beta: Weight for distance term.
+        gamma: Weight for regularization term.
+    """
+
+    def __init__(
+        self,
+        delta_var: float = 0.5,
+        delta_dist: float = 1.5,
+        norm: int = 2,
+        alpha: float = 1.0,
+        beta: float = 1.0,
+        gamma: float = 0.001,
+    ):
+        super().__init__()
+        self.delta_var = delta_var
+        self.delta_dist = delta_dist
+        self.norm = norm
+        self.alpha = alpha
+        self.beta = beta
+        self.gamma = gamma
+
+    def forward(
+        self,
+        embeddings: torch.Tensor,
+        instance_labels: torch.Tensor,
+    ) -> tuple[torch.Tensor, dict[str, float]]:
+        """Compute discriminative loss.
+
+        Args:
+            embeddings: Predicted embeddings (B, E, H, W)
+            instance_labels: Ground truth instance IDs (B, H, W)
+                            - 0 is background (ignored)
+                            - Each unique value > 0 is a separate instance
+
+        Returns:
+            Tuple of (total_loss, loss_dict with components)
+        """
+        batch_size, embed_dim, height, width = embeddings.shape
+
+        # Reshape embeddings: (B, E, H, W) -> (B*H*W, E)
+        embeddings_flat = embeddings.permute(0, 2, 3, 1).reshape(-1, embed_dim)
+        labels_flat = instance_labels.reshape(-1)
+
+        total_var_loss = 0.0
+        total_dist_loss = 0.0
+        total_reg_loss = 0.0
+
+        num_instances_total = 0
+
+        for b in range(batch_size):
+            # Get embeddings and labels for this batch item
+            batch_mask = torch.arange(batch_size, device=embeddings.device).repeat_interleave(height * width) == b
+            batch_embeddings = embeddings_flat[batch_mask]
+            batch_labels = labels_flat[batch_mask]
+
+            # Find unique instances (excluding background = 0)
+            unique_instances = torch.unique(batch_labels)
+            unique_instances = unique_instances[unique_instances > 0]
+
+            if len(unique_instances) == 0:
+                continue
+
+            num_instances = len(unique_instances)
+            num_instances_total += num_instances
+
+            # Compute instance means
+            instance_means = []
+            for instance_id in unique_instances:
+                instance_mask = batch_labels == instance_id
+                instance_embeddings = batch_embeddings[instance_mask]
+                instance_mean = instance_embeddings.mean(dim=0)
+                instance_means.append(instance_mean)
+
+            instance_means = torch.stack(instance_means)  # (N, E)
+
+            # 1. Variance term: pull pixels toward instance mean
+            var_loss = 0.0
+            for i, instance_id in enumerate(unique_instances):
+                instance_mask = batch_labels == instance_id
+                instance_embeddings = batch_embeddings[instance_mask]
+                mean = instance_means[i]
+
+                # Distance from mean
+                if self.norm == 1:
+                    distances = torch.abs(instance_embeddings - mean).sum(dim=1)
+                else:  # norm == 2
+                    distances = torch.norm(instance_embeddings - mean, p=2, dim=1)
+
+                # Hinge loss with margin delta_var
+                var_loss += torch.clamp(distances - self.delta_var, min=0).sum()
+
+            var_loss = var_loss / num_instances
+            total_var_loss += var_loss
+
+            # 2. Distance term: push instance means apart
+            dist_loss = 0.0
+            if num_instances > 1:
+                for i in range(num_instances):
+                    for j in range(i + 1, num_instances):
+                        mean_i = instance_means[i]
+                        mean_j = instance_means[j]
+
+                        if self.norm == 1:
+                            distance = torch.abs(mean_i - mean_j).sum()
+                        else:  # norm == 2
+                            distance = torch.norm(mean_i - mean_j, p=2)
+
+                        # Hinge loss with margin delta_dist
+                        dist_loss += torch.clamp(2 * self.delta_dist - distance, min=0)
+
+                # Normalize by number of pairs
+                num_pairs = num_instances * (num_instances - 1) / 2
+                dist_loss = dist_loss / num_pairs
+
+            total_dist_loss += dist_loss
+
+            # 3. Regularization term: keep means close to origin
+            reg_loss = torch.norm(instance_means, p=self.norm, dim=1).sum() / num_instances
+            total_reg_loss += reg_loss
+
+        # Average over batch
+        if num_instances_total > 0:
+            total_var_loss = total_var_loss / batch_size
+            total_dist_loss = total_dist_loss / batch_size
+            total_reg_loss = total_reg_loss / batch_size
+
+        # Combine losses
+        total_loss = (
+            self.alpha * total_var_loss +
+            self.beta * total_dist_loss +
+            self.gamma * total_reg_loss
+        )
+
+        loss_dict = {
+            "var_loss": total_var_loss.item() if isinstance(total_var_loss, torch.Tensor) else total_var_loss,
+            "dist_loss": total_dist_loss.item() if isinstance(total_dist_loss, torch.Tensor) else total_dist_loss,
+            "reg_loss": total_reg_loss.item() if isinstance(total_reg_loss, torch.Tensor) else total_reg_loss,
+            "total": total_loss.item() if isinstance(total_loss, torch.Tensor) else total_loss,
+        }
+
+        return total_loss, loss_dict
