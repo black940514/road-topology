@@ -1,8 +1,0 @@
-{
-  "worker_id": 4,
-  "task": "SAM/Alternative Segmentation",
-  "status": "COMPLETE",
-  "files_generated": 30,
-  "script_created": true,
-  "documentation": true
-}

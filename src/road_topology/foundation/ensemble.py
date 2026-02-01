@@ -124,34 +124,6 @@ def largest_component_filter(mask: np.ndarray, min_size: int = 100) -> np.ndarra
     return (labeled == largest_label).astype(np.uint8)
 
 
-def remove_small_components(mask: np.ndarray, min_size: int = 100) -> np.ndarray:
-    """Remove small connected components.
-
-    Args:
-        mask: Binary mask (H, W).
-        min_size: Minimum component size to keep.
-
-    Returns:
-        Filtered mask (H, W).
-    """
-    labeled, num_features = label(mask)
-
-    if num_features == 0:
-        return mask
-
-    component_sizes = np.bincount(labeled.ravel())
-
-    # Keep components above threshold
-    keep_labels = np.where(component_sizes >= min_size)[0]
-    keep_labels = keep_labels[keep_labels > 0]  # Exclude background
-
-    result = np.zeros_like(mask)
-    for lbl in keep_labels:
-        result[labeled == lbl] = 1
-
-    return result.astype(np.uint8)
-
-
 def ensemble_semantic_masks(
     masks: list[np.ndarray],
     strategy: str = "union",
